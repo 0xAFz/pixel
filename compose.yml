@@ -1,0 +1,22 @@
+services:
+  redis:
+    image: redis:7.4
+    container_name: redis_server
+    networks:
+      - app_net
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+networks:
+  app_net:
+    name: app_net
+    driver: bridge
