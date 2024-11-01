@@ -164,3 +164,8 @@ cython_debug/
 
 # Ruff
 .ruff_cache/
+
+# Hydrogram
+*.session
+*.session*
+*.session.*
