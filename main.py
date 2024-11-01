@@ -47,6 +47,7 @@ try:
     print("[+] Connected to redis...")
 except redis.ConnectionError as e:
     print(f"[-] Failed to connect redis: {e}")
+    os._exit(1)
 
 app = Client(
     "pixel",
@@ -54,6 +55,14 @@ app = Client(
     api_hash=config["API_HASH"],
     bot_token=config["BOT_TOKEN"],
 )
+
+@app.on_message(filters.command("start") & filters.private)
+async def start_handler(c: Client, m: Message):
+    text = """
+Just send Youtube video URL.
+"""
+    await m.reply_text(text)
+
 
 @app.on_message(filters.regex(URL_PATTERN) & filters.private)
 async def download_handler(c: Client, m: Message):
@@ -151,12 +160,12 @@ async def quality_selection(c: Client, cb: CallbackQuery):
     await cb.message.edit_reply_markup(None)
     await cb.message.edit_text("Downloading started...")
 
-    file_path, thumbnail_path, width, height = await download_video(user_data["url"], quality)
+    file_path, thumbnail_path, duration, width, height = await download_video(user_data["url"], quality)
 
     if os.path.exists(file_path):
         try:
             await cb.message.edit_text("Uploading to telegram...")
-            await app.send_video(cb.message.chat.id, file_path, thumb=thumbnail_path, supports_streaming=True, width=width, height=height)
+            await app.send_video(cb.message.chat.id, file_path, thumb=thumbnail_path, supports_streaming=True, width=width, height=height, duration=duration)
         except:
             await cb.message.edit_text("Uploading failed!")
         finally:
@@ -179,7 +188,11 @@ async def download_audio(url):
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
                 "preferredquality": "256",
-            }
+            },
+            {
+            "key": "FFmpegThumbnailsConvertor",
+            "format": "jpg",
+            },
         ],
         "outtmpl": "downloads/%(title)s.%(ext)s",
         "writethumbnail": True,
@@ -191,16 +204,8 @@ async def download_audio(url):
             info_dict = ydl.extract_info(url, download=True)
             file_path = ydl.prepare_filename(info_dict)
             new_path = file_path.rsplit(".", 1)[0] + ".mp3"
-            title = file_path.rsplit(".", 1)[0]
-            webp = file_path.rsplit(".", 1)[0] + ".webp"
-            jpeg = file_path.rsplit(".", 1)[0] + ".jpeg"
-
-            if os.path.exists(webp):
-                thumbnail_path = webp
-            elif os.path.exists(jpeg):
-                thumbnail_path = jpeg
-            else:
-                thumbnail_path = None
+            title = info_dict.get("title", "Unknown")
+            thumbnail_path = file_path.rsplit(".", 1)[0] + ".jpg"
 
             return new_path, thumbnail_path, title
 
@@ -227,7 +232,11 @@ async def download_video(url, quality):
             {
                 "key": "FFmpegVideoConvertor",
                 "preferedformat": "mp4",
-            }
+            },
+            {
+            "key": "FFmpegThumbnailsConvertor",
+            "format": "jpg",
+            },
         ],
         "writethumbnail": True,
         "quiet": True,
@@ -238,28 +247,19 @@ async def download_video(url, quality):
             info_dict = ydl.extract_info(url, download=True)
             file_path = ydl.prepare_filename(info_dict)
             new_path = file_path.rsplit(".", 1)[0] + ".mp4"
-
-            webp = file_path.rsplit(".", 1)[0] + ".webp"
-            jpeg = file_path.rsplit(".", 1)[0] + ".jpeg"
-
             width = info_dict.get("width", 0)
             height = info_dict.get('height', 0)
+            duration = int(info_dict.get("duration", 0))
+            thumbnail_path = file_path.rsplit(".", 1)[0] + ".jpg"
 
-            if os.path.exists(webp):
-                thumbnail_path = webp
-            elif os.path.exists(jpeg):
-                thumbnail_path = jpeg
-            else:
-                thumbnail_path = None
-
-            return new_path, thumbnail_path, width, height
+            return new_path, thumbnail_path, duration, width, height
 
     loop = asyncio.get_running_loop()
     try:
         with ThreadPoolExecutor() as pool:
-            new_path, thumbnail_path, width, height = await loop.run_in_executor(pool, _download)
+            new_path, thumbnail_path, duration, width, height = await loop.run_in_executor(pool, _download)
         
-        return new_path, thumbnail_path, width, height
+        return new_path, thumbnail_path, duration, width, height
     except Exception as e:
         print(f"Error: {e}")
         return None
