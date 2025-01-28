@@ -6,7 +6,7 @@ services:
     image: pixel
     container_name: pixel
     networks:
-      - app_net
+      - pixel_net
     env_file: .env
     depends_on:
       redis:
@@ -26,7 +26,7 @@ services:
     image: redis:7.4
     command: ["redis-server", "--maxmemory", "2gb", "--maxmemory-policy", "allkeys-lru"]
     networks:
-      - app_net
+      - pixel_net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -47,6 +47,6 @@ services:
           memory: 1G
 
 networks:
-  app_net:
-    name: app_net
+  pixel_net:
+    name: pixel_net
     driver: bridge
